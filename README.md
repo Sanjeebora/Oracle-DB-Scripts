@@ -2,6 +2,77 @@
 
 Linux helper scripts for day-to-day file and database work.
 
+## oracle_listener_connections.sh
+
+Discover the Oracle listener log and count successful established connections grouped by client machine name.
+
+### Requirements
+
+- Linux or another Unix-like OS with Bash
+- Oracle `lsnrctl` available in `PATH`
+- Read permission for the listener log
+- Standard `awk` and `sort` utilities
+
+Set the Oracle environment before running the script if necessary:
+
+```bash
+export ORACLE_HOME=/path/to/oracle/home
+export PATH="$ORACLE_HOME/bin:$PATH"
+```
+
+### Setup
+
+```bash
+chmod +x oracle_listener_connections.sh
+```
+
+### Usage
+
+The default listener name is `LISTENER`:
+
+```bash
+./oracle_listener_connections.sh
+```
+
+Specify a different listener as the first argument:
+
+```bash
+./oracle_listener_connections.sh LISTENER_ORCL
+```
+
+Show help:
+
+```bash
+./oracle_listener_connections.sh --help
+```
+
+### Example output
+
+```text
+Listener log: /u01/app/oracle/diag/tnslsnr/dbserver/listener/alert/log.xml
+
+CLIENT_MACHINE                            CONNECTIONS
+---------------------------------------- ------------
+appserver01                                         25
+appserver02                                         12
+---------------------------------------- ------------
+TOTAL                                              37
+```
+
+### Behavior
+
+- Runs `lsnrctl status LISTENER_NAME` to discover the listener log.
+- Prints the listener log location before the connection statistics.
+- Supports traditional text listener logs and Oracle ADR XML `log.xml` files.
+- Counts only `establish` records whose Oracle listener status code is `0`.
+- Uses the first `HOST` value in `CONNECT_DATA/CID` as the client machine.
+- Displays `<unknown>` when a successful record does not contain a client `HOST`.
+- Sorts machines by connection count, highest first.
+- Reads the current listener log only; rotated listener logs are not included.
+- Exits with an error if `lsnrctl` fails or the discovered log cannot be read.
+
+Run the script as the Oracle software owner if the listener log is not readable by your current user.
+
 ## gzip_files.sh
 
 Compress files with `gzip`, or pack directories into a tar archive and then gzip that archive. Use separate flags so files and directories are handled correctly.
