@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Report successful Oracle listener connections grouped by client machine.
+# Report successful Oracle listener connections grouped by hour and client.
 
 set -euo pipefail
 
@@ -8,7 +8,7 @@ usage() {
 Usage: oracle_listener_connections.sh [LISTENER_NAME]
 
 Discover the Oracle listener log with "lsnrctl status", then count
-successful established connections grouped by client machine name.
+successful established connections grouped by hour and client machine.
 
 LISTENER_NAME defaults to LISTENER.
 
@@ -76,14 +76,65 @@ if [[ ! -r "$listener_log" ]]; then
 fi
 
 awk '
+  BEGIN {
+    month_number["JAN"] = 1
+    month_number["FEB"] = 2
+    month_number["MAR"] = 3
+    month_number["APR"] = 4
+    month_number["MAY"] = 5
+    month_number["JUN"] = 6
+    month_number["JUL"] = 7
+    month_number["AUG"] = 8
+    month_number["SEP"] = 9
+    month_number["OCT"] = 10
+    month_number["NOV"] = 11
+    month_number["DEC"] = 12
+  }
+
   function trim(value) {
     sub(/^[[:space:]]+/, "", value)
     sub(/[[:space:]]+$/, "", value)
     return value
   }
 
+  function extract_hour(timestamp, date_time, date_parts, time_parts,
+                        day, month, year, hour, part_count) {
+    timestamp = trim(timestamp)
+
+    # Support an ISO timestamp if one appears in listener message text.
+    if (index(timestamp, "T") > 0) {
+      split(timestamp, date_time, "T")
+      split(date_time[1], date_parts, "-")
+      split(date_time[2], time_parts, ":")
+      if (length(date_parts[1]) == 4 && time_parts[1] != "") {
+        year = date_parts[1]
+        month = date_parts[2]
+        day = date_parts[3]
+        hour = time_parts[1]
+      }
+    } else {
+      part_count = split(timestamp, date_time, /[[:space:]]+/)
+      if (part_count >= 2) {
+        split(date_time[1], date_parts, "-")
+        split(date_time[2], time_parts, ":")
+        day = date_parts[1]
+        month = month_number[toupper(date_parts[2])]
+        year = date_parts[3]
+        hour = time_parts[1]
+      }
+    }
+
+    if (year == "" || month == "" || day == "" || hour == "") {
+      hour_sort = "9999999999"
+      return "<unknown hour>"
+    }
+
+    hour_sort = sprintf("%04d%02d%02d%02d", year, month, day, hour)
+    return sprintf("%04d-%02d-%02d %02d:00", year, month, day, hour)
+  }
+
   function process(entry, fields, field_count, i, clean_entry, upper_entry,
-                   host_token, host) {
+                   host_token, host, hour_label, key) {
     clean_entry = entry
     gsub(/<[^>]*>/, "", clean_entry)
 
@@ -114,7 +165,9 @@ awk '
       host = "<unknown>"
     }
 
-    connections[host]++
+    hour_label = extract_hour(fields[1])
+    key = hour_sort SUBSEP hour_label SUBSEP host
+    connections[key]++
   }
 
   {
@@ -150,23 +203,25 @@ awk '
     if (in_text && text_buffer != "") {
       process(text_buffer)
     }
-    for (host in connections) {
-      printf "%s\t%d\n", host, connections[host]
+    for (key in connections) {
+      split(key, key_parts, SUBSEP)
+      printf "%s\t%s\t%s\t%d\n", key_parts[1], key_parts[2],
+             key_parts[3], connections[key]
     }
   }
 ' "$listener_log" |
-  sort -t $'\t' -k2,2nr -k1,1 |
+  sort -t $'\t' -k1,1 -k4,4nr -k3,3 |
   awk -F '\t' '
     BEGIN {
-      printf "%-40s %12s\n", "CLIENT_MACHINE", "CONNECTIONS"
-      printf "%-40s %12s\n", "----------------------------------------", "------------"
+      printf "%-16s  %-32s %12s\n", "HOUR", "CLIENT_MACHINE", "CONNECTIONS"
+      printf "%-16s  %-32s %12s\n", "----------------", "--------------------------------", "------------"
     }
     {
-      printf "%-40s %12d\n", $1, $2
-      total += $2
+      printf "%-16s  %-32s %12d\n", $2, $3, $4
+      total += $4
     }
     END {
-      printf "%-40s %12s\n", "----------------------------------------", "------------"
-      printf "%-40s %12d\n", "TOTAL", total
+      printf "%-16s  %-32s %12s\n", "----------------", "--------------------------------", "------------"
+      printf "%-16s  %-32s %12d\n", "", "TOTAL", total
     }
   '

@@ -4,7 +4,7 @@ Linux helper scripts for day-to-day file and database work.
 
 ## oracle_listener_connections.sh
 
-Discover the Oracle listener log and count successful established connections grouped by client machine name.
+Discover the Oracle listener log and count successful established connections grouped by hour and client machine name.
 
 ### Requirements
 
@@ -51,12 +51,14 @@ Show help:
 ```text
 Listener log: /u01/app/oracle/diag/tnslsnr/dbserver/listener/alert/log.xml
 
-CLIENT_MACHINE                            CONNECTIONS
----------------------------------------- ------------
-appserver01                                         25
-appserver02                                         12
----------------------------------------- ------------
-TOTAL                                              37
+HOUR              CLIENT_MACHINE                    CONNECTIONS
+----------------  -------------------------------- ------------
+2026-08-28 10:00  appserver01                                 15
+2026-08-28 10:00  appserver02                                  7
+2026-08-28 11:00  appserver01                                 10
+2026-08-28 11:00  appserver02                                  5
+----------------  -------------------------------- ------------
+                  TOTAL                                      37
 ```
 
 ### Behavior
@@ -66,8 +68,9 @@ TOTAL                                              37
 - Supports traditional text listener logs and Oracle ADR XML `log.xml` files.
 - Counts only `establish` records whose Oracle listener status code is `0`.
 - Uses the first `HOST` value in `CONNECT_DATA/CID` as the client machine.
+- Groups each client machine's count into hourly buckets displayed as `YYYY-MM-DD HH:00`.
 - Displays `<unknown>` when a successful record does not contain a client `HOST`.
-- Sorts machines by connection count, highest first.
+- Sorts the report chronologically, with the busiest client first within each hour.
 - Reads the current listener log only; rotated listener logs are not included.
 - Exits with an error if `lsnrctl` fails or the discovered log cannot be read.
 
