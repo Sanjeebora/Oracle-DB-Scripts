@@ -4,7 +4,7 @@ Linux helper scripts for day-to-day file and database work.
 
 ## oracle_session_counts.sh
 
-Count Oracle sessions grouped by instance name, username, machine, and program. For each group, the report shows ACTIVE, INACTIVE, and TOTAL session counts.
+Count Oracle sessions grouped by instance name, username, machine, and program. For each group, the report shows ACTIVE, INACTIVE, and TOTAL session counts. Background processes and SYS user sessions are omitted.
 
 ### Requirements
 
@@ -61,9 +61,8 @@ INSTANCE          USERNAME          MACHINE                   PROGRAM           
 ----------------  ----------------  ------------------------  --------------------------------  --------  ----------  --------
 orcl1             APPUSER           appserver01               JDBC Thin Client                         4          12        16
 orcl1             APPUSER           appserver02               sqlplus@appserver02 (TNS V1-V3)          1           0         1
-orcl1             BACKGROUND        dbserver01                oracle@dbserver01 (P000)                 2           0         2
 ----------------  ----------------  ------------------------  --------------------------------  --------  ----------  --------
-                                                                  TOTAL                                7          12        19
+                                                                  TOTAL                                5          12        17
 ```
 
 ### Behavior
@@ -71,7 +70,7 @@ orcl1             BACKGROUND        dbserver01                oracle@dbserver01 
 - Queries `GV$SESSION` joined to `GV$INSTANCE`, so the report covers every instance in a RAC cluster as well as a single-instance database.
 - Groups rows by instance name, username, client machine, and program.
 - Counts `ACTIVE` and `INACTIVE` sessions separately. Other statuses such as `KILLED` or `SNIPED` are included in `TOTAL` only.
-- Background processes with a null username are reported as `BACKGROUND`.
+- Omits background processes (`GV$SESSION.TYPE = 'BACKGROUND'`) and sessions whose username is `SYS`.
 - Null machine or program values are reported as `UNKNOWN`.
 - Prints a grand total row for ACTIVE, INACTIVE, and TOTAL.
 - Exits with an error if `sqlplus` is missing, the query fails, or no parseable session rows are returned.
