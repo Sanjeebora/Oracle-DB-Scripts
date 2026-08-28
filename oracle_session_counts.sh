@@ -10,8 +10,8 @@ Usage: oracle_session_counts.sh [CONNECT_STRING]
 Count Oracle sessions grouped by instance name, username, machine, and
 program. For each group, report ACTIVE, INACTIVE, and total session
 counts. Other statuses such as KILLED or SNIPED are included in TOTAL
-but not in ACTIVE or INACTIVE. Background processes and SYS sessions
-are excluded.
+but not in ACTIVE or INACTIVE. Background processes and SYS, DBSNMP,
+and PUBLIC sessions are excluded.
 
 CONNECT_STRING defaults to "/ as sysdba".
 
@@ -71,7 +71,7 @@ SELECT
 FROM gv$session s
 JOIN gv$instance i ON s.inst_id = i.inst_id
 WHERE s.type = 'USER'
-  AND s.username <> 'SYS'
+  AND s.username NOT IN ('SYS', 'DBSNMP', 'PUBLIC')
 GROUP BY
   NVL(i.instance_name, 'UNKNOWN'),
   s.username,
