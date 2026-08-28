@@ -10,7 +10,8 @@ Usage: oracle_session_counts.sh [CONNECT_STRING]
 Count Oracle sessions grouped by instance name, username, machine, and
 program. For each group, report ACTIVE, INACTIVE, and total session
 counts. Other statuses such as KILLED or SNIPED are included in TOTAL
-but not in ACTIVE or INACTIVE.
+but not in ACTIVE or INACTIVE. Background processes and SYS sessions
+are excluded.
 
 CONNECT_STRING defaults to "/ as sysdba".
 
@@ -61,7 +62,7 @@ SET TRIMSPOOL ON
 SET TAB OFF
 SELECT
   NVL(i.instance_name, 'UNKNOWN')
-  || '~|~' || NVL(s.username, 'BACKGROUND')
+  || '~|~' || s.username
   || '~|~' || NVL(s.machine, 'UNKNOWN')
   || '~|~' || NVL(s.program, 'UNKNOWN')
   || '~|~' || SUM(CASE WHEN s.status = 'ACTIVE' THEN 1 ELSE 0 END)
@@ -69,14 +70,16 @@ SELECT
   || '~|~' || COUNT(*)
 FROM gv$session s
 JOIN gv$instance i ON s.inst_id = i.inst_id
+WHERE s.type = 'USER'
+  AND s.username <> 'SYS'
 GROUP BY
   NVL(i.instance_name, 'UNKNOWN'),
-  NVL(s.username, 'BACKGROUND'),
+  s.username,
   NVL(s.machine, 'UNKNOWN'),
   NVL(s.program, 'UNKNOWN')
 ORDER BY
   NVL(i.instance_name, 'UNKNOWN'),
-  NVL(s.username, 'BACKGROUND'),
+  s.username,
   NVL(s.machine, 'UNKNOWN'),
   NVL(s.program, 'UNKNOWN');
 EXIT
