@@ -9,7 +9,8 @@ Usage: oracle_top_cpu_sessions.sh [CONNECT_STRING]
 
 Show the five connected user sessions with the highest cumulative CPU
 usage. Session details are followed by the SQL ID and SQL text associated
-with each session.
+with each session. Instance and container names identify the CDB/PDB
+where each session and SQL statement belongs.
 
 Background processes and SYS, DBSNMP, and PUBLIC sessions are excluded.
 CONNECT_STRING defaults to "/ as sysdba".
@@ -66,7 +67,9 @@ WITH ranked_sessions AS (
       ORDER BY ss.value DESC, s.inst_id, s.sid
     ) AS cpu_rank,
     s.inst_id,
+    s.con_id,
     i.instance_name,
+    c.name AS container_name,
     s.sid,
     s.serial#,
     s.username,
@@ -82,6 +85,9 @@ WITH ranked_sessions AS (
    AND sn.statistic# = ss.statistic#
   JOIN gv$instance i
     ON i.inst_id = s.inst_id
+  JOIN gv$containers c
+    ON c.inst_id = s.inst_id
+   AND c.con_id = s.con_id
   WHERE sn.name = 'CPU used by this session'
     AND s.type = 'USER'
     AND s.username NOT IN ('SYS', 'DBSNMP', 'PUBLIC')
@@ -94,6 +100,7 @@ top_sessions AS (
 sql_candidates AS (
   SELECT
     q.inst_id,
+    q.con_id,
     q.sql_id,
     REPLACE(
       REPLACE(
@@ -103,16 +110,17 @@ sql_candidates AS (
       '~|~', ' | '
     ) AS sql_text,
     ROW_NUMBER() OVER (
-      PARTITION BY q.inst_id, q.sql_id
+      PARTITION BY q.inst_id, q.con_id, q.sql_id
       ORDER BY q.last_active_time DESC NULLS LAST, q.child_number DESC
     ) AS sql_rank
   FROM gv$sql q
   JOIN (
-    SELECT DISTINCT inst_id, sql_id
+    SELECT DISTINCT inst_id, con_id, sql_id
     FROM top_sessions
     WHERE sql_id IS NOT NULL
   ) t
     ON t.inst_id = q.inst_id
+   AND t.con_id = q.con_id
    AND t.sql_id = q.sql_id
 ),
 report_rows AS (
@@ -121,6 +129,7 @@ report_rows AS (
     t.cpu_rank AS display_order,
     t.cpu_rank,
     t.instance_name,
+    t.container_name,
     t.sid,
     t.serial#,
     t.username,
@@ -137,6 +146,7 @@ report_rows AS (
     100 + t.cpu_rank AS display_order,
     t.cpu_rank,
     t.instance_name,
+    t.container_name,
     t.sid,
     t.serial#,
     t.username,
@@ -146,6 +156,7 @@ report_rows AS (
   FROM top_sessions t
   LEFT JOIN sql_candidates q
     ON q.inst_id = t.inst_id
+   AND q.con_id = t.con_id
    AND q.sql_id = t.sql_id
    AND q.sql_rank = 1
 )
@@ -153,6 +164,7 @@ SELECT
   record_type
   || '~|~' || cpu_rank
   || '~|~' || instance_name
+  || '~|~' || container_name
   || '~|~' || sid
   || '~|~' || serial#
   || '~|~' || username
@@ -197,19 +209,19 @@ printf '%s\n' "$sqlplus_output" |
 
     BEGIN {
       printf "TOP 5 CPU-CONSUMING SESSIONS (CUMULATIVE)\n\n"
-      printf "%-5s %-12s %8s %10s %-20s %-28s %-13s %12s\n",
-             "RANK", "INSTANCE", "SID", "SERIAL#",
+      printf "%-5s %-12s %-18s %8s %10s %-20s %-28s %-13s %12s\n",
+             "RANK", "INSTANCE", "CONTAINER", "SID", "SERIAL#",
              "USERNAME", "MACHINE", "SQL_ID", "CPU_SECONDS"
-      printf "%-5s %-12s %8s %10s %-20s %-28s %-13s %12s\n",
-             "-----", "------------", "--------", "----------",
+      printf "%-5s %-12s %-18s %8s %10s %-20s %-28s %-13s %12s\n",
+             "-----", "------------", "------------------", "--------", "----------",
              "--------------------", "----------------------------",
              "-------------", "------------"
     }
 
     $1 == "SESSION" {
-      printf "%-5s %-12s %8s %10s %-20s %-28s %-13s %12s\n",
-             trim($2), trim($3), trim($4), trim($5),
-             trim($6), trim($7), trim($8), trim($9)
+      printf "%-5s %-12s %-18s %8s %10s %-20s %-28s %-13s %12s\n",
+             trim($2), trim($3), trim($4), trim($5), trim($6),
+             trim($7), trim($8), trim($9), trim($10)
       session_count++
       next
     }
@@ -217,15 +229,16 @@ printf '%s\n' "$sqlplus_output" |
     $1 == "SQL" {
       if (!sql_heading_printed) {
         printf "\nSQL DETAILS FOR TOP SESSIONS\n\n"
-        printf "%-5s %-12s %8s %10s %-13s %s\n",
-               "RANK", "INSTANCE", "SID", "SERIAL#", "SQL_ID", "SQL_TEXT"
-        printf "%-5s %-12s %8s %10s %-13s %s\n",
-               "-----", "------------", "--------", "----------",
+        printf "%-5s %-12s %-18s %8s %10s %-13s %s\n",
+               "RANK", "INSTANCE", "CONTAINER", "SID", "SERIAL#", "SQL_ID", "SQL_TEXT"
+        printf "%-5s %-12s %-18s %8s %10s %-13s %s\n",
+               "-----", "------------", "------------------", "--------", "----------",
                "-------------", "--------"
         sql_heading_printed = 1
       }
-      printf "%-5s %-12s %8s %10s %-13s %s\n",
-             trim($2), trim($3), trim($4), trim($5), trim($8), trim($9)
+      printf "%-5s %-12s %-18s %8s %10s %-13s %s\n",
+             trim($2), trim($3), trim($4), trim($5), trim($6),
+             trim($9), trim($10)
       sql_count++
       next
     }
