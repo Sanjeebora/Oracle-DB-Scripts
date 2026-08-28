@@ -2,6 +2,66 @@
 
 Linux helper scripts for day-to-day file and database work.
 
+## oracle_top_cpu_sessions.sh
+
+Show the five connected Oracle user sessions with the highest cumulative CPU usage, followed by the SQL ID and SQL text associated with each session.
+
+### Requirements
+
+- Linux or another Unix-like OS with Bash
+- Oracle `sqlplus` available in `PATH`
+- Privilege to query `GV$SESSION`, `GV$SESSTAT`, `GV$STATNAME`, `GV$INSTANCE`, and `GV$SQL`
+- Standard `awk` and `grep` utilities
+
+Set the Oracle environment before running the script if necessary:
+
+```bash
+export ORACLE_HOME=/path/to/oracle/home
+export PATH="$ORACLE_HOME/bin:$PATH"
+export ORACLE_SID=ORCL
+```
+
+### Setup and usage
+
+```bash
+chmod +x oracle_top_cpu_sessions.sh
+./oracle_top_cpu_sessions.sh
+```
+
+Pass a SQL*Plus connect string as an argument or through `ORACLE_CONNECT`:
+
+```bash
+./oracle_top_cpu_sessions.sh system/password@ORCL
+ORACLE_CONNECT='system/password@ORCL' ./oracle_top_cpu_sessions.sh
+```
+
+### Example output
+
+```text
+TOP 5 CPU-CONSUMING SESSIONS (CUMULATIVE)
+
+RANK  INSTANCE         SID    SERIAL# USERNAME             MACHINE                      SQL_ID         CPU_SECONDS
+----- ------------ -------- ---------- -------------------- ---------------------------- ------------- ------------
+1     orcl1             271      41902 APPUSER              appserver01                  7wj456mbwr4p1       982.41
+2     orcl2             814      10231 REPORTUSER           reportserver01               3h2k1v8a9r0x7       421.08
+
+SQL DETAILS FOR TOP SESSIONS
+
+RANK  INSTANCE         SID    SERIAL# SQL_ID        SQL_TEXT
+----- ------------ -------- ---------- ------------- --------
+1     orcl1             271      41902 7wj456mbwr4p1 SELECT order_id, customer_id FROM orders WHERE status = :1
+2     orcl2             814      10231 3h2k1v8a9r0x7 SELECT region, SUM(amount) FROM sales GROUP BY region
+```
+
+### Behavior
+
+- Ranks currently connected sessions by the cumulative `CPU used by this session` statistic. This is CPU consumed over each session's lifetime, not CPU sampled during an interval.
+- Reports rank, instance name, SID, serial number, username, machine, SQL ID, and CPU seconds.
+- Uses the current SQL ID, falling back to the previous SQL ID when the session has no current SQL.
+- Prints up to the first 1,000 characters of SQL text for every ranked session.
+- Supports RAC by reading the global dynamic performance views and identifying the instance.
+- Omits background processes and sessions belonging to `SYS`, `DBSNMP`, or `PUBLIC`.
+
 ## oracle_session_counts.sh
 
 Count Oracle sessions grouped by instance name, username, machine, and program. For each group, the report shows ACTIVE, INACTIVE, and TOTAL session counts. Background processes and SYS, DBSNMP, and PUBLIC user sessions are omitted.
