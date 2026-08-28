@@ -4,7 +4,7 @@ Linux helper scripts for day-to-day file and database work.
 
 ## oracle_session_counts.sh
 
-Count Oracle sessions grouped by instance name, username, machine, and program. For each group, the report shows ACTIVE, INACTIVE, and TOTAL session counts. Background processes and SYS user sessions are omitted.
+Count Oracle sessions grouped by instance name, username, machine, and program. For each group, the report shows ACTIVE, INACTIVE, and TOTAL session counts. Background processes and SYS, DBSNMP, and PUBLIC user sessions are omitted.
 
 ### Requirements
 
@@ -70,7 +70,7 @@ orcl1             APPUSER           appserver02               sqlplus@appserver0
 - Queries `GV$SESSION` joined to `GV$INSTANCE`, so the report covers every instance in a RAC cluster as well as a single-instance database.
 - Groups rows by instance name, username, client machine, and program.
 - Counts `ACTIVE` and `INACTIVE` sessions separately. Other statuses such as `KILLED` or `SNIPED` are included in `TOTAL` only.
-- Omits background processes (`GV$SESSION.TYPE = 'BACKGROUND'`) and sessions whose username is `SYS`.
+- Omits background processes (`GV$SESSION.TYPE = 'BACKGROUND'`) and sessions whose username is `SYS`, `DBSNMP`, or `PUBLIC`.
 - Null machine or program values are reported as `UNKNOWN`.
 - Prints a grand total row for ACTIVE, INACTIVE, and TOTAL.
 - Exits with an error if `sqlplus` is missing, the query fails, or no parseable session rows are returned.
